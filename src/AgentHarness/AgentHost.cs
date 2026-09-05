@@ -8,6 +8,9 @@ namespace AgentHarness;
 /// <summary>POST /turns 的请求体。一句话 = 一次用户回合（里面可能有多次 LLM HTTP）。</summary>
 public sealed record TurnRequest(string? Message);
 
+/// <summary>GET /info 的响应。不含 ApiKey。</summary>
+public sealed record HarnessInfo(string Workspace, string Model, string BaseUrl);
+
 /// <summary>
 /// 进程里只有一份 Runtime。Gate 保证同一时刻只跑一个回合（conversation 不是线程安全的）。
 /// </summary>

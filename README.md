@@ -42,7 +42,8 @@ AgentEvent ──C# 门铃──► POST /turns 的响应（再写成 SSE 推给
 | `GET` | `/conversation` | 相当于以前 REPL 的 `dump` |
 | `DELETE` | `/conversation` | 清空对话 |
 | `GET` | `/info` | workspace / model / baseUrl（不含 Key） |
-| `GET` | `/` | 一个用来点着看事件的小页面 |
+| `GET` | `/swagger` | Swagger UI（默认首页 `/` 会跳到这里） |
+| `GET` | `/openapi/v1.json` | OpenAPI 文档 |
 
 注意两层 SSE：模型 → 我们（Responses），我们 → 浏览器（`AgentEvent`）。
 
@@ -80,7 +81,7 @@ flowchart LR
 dotnet run --project src/AgentHarness
 ```
 
-浏览器打开 http://localhost:5080 ，或：
+浏览器打开 http://localhost:5080/swagger ，或：
 
 ```bash
 curl -N -X POST http://localhost:5080/turns \

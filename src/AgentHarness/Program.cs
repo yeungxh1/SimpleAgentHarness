@@ -29,25 +29,61 @@ using AgentHarness.Tools;
 var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddSingleton(ComposeHost);
 builder.Services.AddSingleton(sp => sp.GetRequiredService<AgentHost>().Runtime);
+builder.Services.AddOpenApi(options =>
+{
+    options.AddDocumentTransformer((document, _, _) =>
+    {
+        document.Info.Title = "AgentHarness";
+        document.Info.Version = "v1";
+        document.Info.Description =
+            "最小 agent harness。POST /turns 的响应是 text/event-stream，每条 data 是一个 AgentEvent。";
+        return Task.CompletedTask;
+    });
+});
 
 var app = builder.Build();
-app.UseDefaultFiles();
-app.UseStaticFiles();
+app.MapOpenApi();
+app.UseSwaggerUI(options =>
+{
+    options.DocumentTitle = "AgentHarness";
+    options.SwaggerEndpoint("/openapi/v1.json", "AgentHarness v1");
+});
 
-app.MapPost("/turns", RunTurnAsync);
+app.MapGet("/", () => Results.Redirect("/swagger"))
+    .ExcludeFromDescription();
+
+app.MapPost("/turns", RunTurnAsync)
+    .WithName("RunTurn")
+    .WithTags("AgentHarness")
+    .WithSummary("跑一个用户回合")
+    .WithDescription("响应是 text/event-stream。每条 event: agent，data 是一个 AgentEvent JSON。Swagger 的 Try it out 会一直挂到回合结束。")
+    .Accepts<TurnRequest>("application/json")
+    .Produces<string>(StatusCodes.Status200OK, contentType: "text/event-stream")
+    .Produces(StatusCodes.Status400BadRequest)
+    .Produces(StatusCodes.Status409Conflict);
+
 app.MapGet("/conversation", (AgentRuntime runtime) =>
-    Results.Content(runtime.DumpConversation(), "application/json"));
+        Results.Content(runtime.DumpConversation(), "application/json"))
+    .WithName("GetConversation")
+    .WithTags("AgentHarness")
+    .WithSummary("导出当前 conversation JSON")
+    .Produces(StatusCodes.Status200OK, contentType: "application/json");
+
 app.MapDelete("/conversation", (AgentRuntime runtime) =>
-{
-    runtime.Reset();
-    return Results.NoContent();
-});
-app.MapGet("/info", (AgentHost host) => new
-{
-    workspace = host.WorkspaceRoot,
-    model = host.Model,
-    baseUrl = host.BaseUrl
-});
+    {
+        runtime.Reset();
+        return Results.NoContent();
+    })
+    .WithName("ResetConversation")
+    .WithTags("AgentHarness")
+    .WithSummary("清空对话")
+    .Produces(StatusCodes.Status204NoContent);
+
+app.MapGet("/info", (AgentHost host) => new HarnessInfo(host.WorkspaceRoot, host.Model, host.BaseUrl))
+    .WithName("GetInfo")
+    .WithTags("AgentHarness")
+    .WithSummary("workspace / model / baseUrl（不含 Key）")
+    .Produces<HarnessInfo>();
 
 app.Run();
 
