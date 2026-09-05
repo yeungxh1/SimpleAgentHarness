@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <title>AgentHarness</title>
+  <style>
+    :root { color-scheme: light dark; }
+    body { font: 14px/1.5 ui-monospace, Menlo, Consolas, monospace; max-width: 880px; margin: 24px auto; padding: 0 16px; }
+    h1 { font-size: 18px; font-weight: 600; }
+    textarea { width: 100%; height: 72px; box-sizing: border-box; }
+    button { margin-right: 8px; margin-top: 8px; }
+    pre { white-space: pre-wrap; background: #1111; padding: 12px; }
+    .kind { font-weight: 700; }
+    .meta { opacity: 0.65; }
+  </style>
+</head>
+<body>
+  <h1>AgentHarness <span class="meta">POST /turns → SSE(AgentEvent)</span></h1>
+  <p class="meta">以前控制台的 EventPrinter，现在是下面这份列表。Loop 没变，只换了订阅者。</p>
+  <textarea id="msg">读一下 hello.txt</textarea>
+  <div>
+    <button id="send">发送回合</button>
+    <button id="dump">GET /conversation</button>
+    <button id="reset">DELETE /conversation</button>
+  </div>
+  <pre id="log"></pre>
+  <script>
+    const log = document.getElementById("log");
+    const msg = document.getElementById("msg");
+
+    function line(text) {
+      log.textContent += text + "\n";
+      log.scrollTop = log.scrollHeight;
+    }
+
+    document.getElementById("send").onclick = async () => {
+      log.textContent = "";
+      const res = await fetch("/turns", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ message: msg.value })
+      });
+      if (!res.ok || !res.body) {
+        line("HTTP " + res.status + " " + await res.text());
+        return;
+      }
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let buf = "";
+      while (true) {
+        const { value, done } = await reader.read();
+        if (done) break;
+        buf += decoder.decode(value, { stream: true });
+        const parts = buf.split("\n\n");
+        buf = parts.pop();
+        for (const part of parts) {
+          const data = part.split("\n").find(l => l.startsWith("data: "));
+          if (!data) continue;
+          const evt = JSON.parse(data.slice(6));
+          line((evt.kind || "?").padEnd(20) + "  " + (evt.text || evt.toolName || evt.arguments || evt.output || "").toString().slice(0, 180));
+        }
+      }
+    };
+
+    document.getElementById("dump").onclick = async () => {
+      log.textContent = await (await fetch("/conversation")).text();
+    };
+
+    document.getElementById("reset").onclick = async () => {
+      await fetch("/conversation", { method: "DELETE" });
+      log.textContent = "(已清空 conversation)\n";
+    };
+  </script>
+</body>
+</html>
